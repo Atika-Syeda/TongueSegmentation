@@ -184,7 +184,7 @@ for epoch in tqdm(range(args.epochs), disable=not(args.verbose)):
     epoch_train_loss.append(avg_train_loss)
     epoch_train_acc.append(avg_train_acc)
     epoch_val_loss.append(avg_val_loss)
-    epoch_val_acc.append(avg_val_acc)
+    epoch_val_acc.append(avg_val_acc*100)
     model_file = os.path.join(trained_models_path, 'model_' + str(epoch) + '.pth')
     torch.save(model.state_dict(), model_file)
 
@@ -210,7 +210,7 @@ ax[1].plot(epoch_train_acc, label='train', lw=2)
 ax[1].plot(epoch_val_acc, label='val', lw=2)
 ax[1].set_title('Accuracy')
 ax[1].set_xlabel('Epoch')
-ax[1].set_ylabel('Accuracy (%)')
+ax[1].set_ylabel('Accuracy (%) - IoU')
 ax[1].legend()
 # remove right and top spines
 ax[1].spines['right'].set_visible(False)    
