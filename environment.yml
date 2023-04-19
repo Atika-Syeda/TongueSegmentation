@@ -12,3 +12,4 @@ dependencies:
     - torch>=1.9
     - torchvision
     - imgaug
+    - opencv-python
