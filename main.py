@@ -174,7 +174,7 @@ epoch_val_loss, epoch_val_acc = [], []
 
 if args.verbose:
     print("Training started...")
-for epoch in tqdm(range(1, args.epochs+1), disable=not(args.verbose)):
+for epoch in tqdm(range(args.epochs), disable=not(args.verbose)):
     # Set learning rate
     for param_group in optimizer.param_groups:
         param_group["lr"] = LR[epoch]
