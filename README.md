@@ -1,4 +1,4 @@
-# DLCV_final_project
+# DLCV final project
 Deep Learning for Computer Vision final project 
 
 ## Summary 
@@ -38,6 +38,10 @@ Please download the dataset from ... and extract the files in the same directory
 After downloading and extracting the dataset the project structure should look as follows:
 ```
 ├── data
+    ├── bottom
+        ├── train
+        ├── test
+    ├── side
 ├── environment.yml
 ├── evaluate.py
 ├── main.py
