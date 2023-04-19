@@ -11,3 +11,4 @@ dependencies:
     - tqdm
     - torch>=1.9
     - torchvision
+    - imgaug
