@@ -56,14 +56,12 @@ if not os.path.exists(trained_models_path):
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Data loaders ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 try:
     train_dataset_files = glob(os.path.join(os.getcwd(), 'data', args.view, 'train', '*'))
-    test_dataset_files = glob(os.path.join(os.getcwd(), 'data', args.view, 'test', '*'))
 except Exception as e:
     raise Exception("Dataset view name not recognized: {}".format(args.view))
 
 # Load data
 print("Loading data...")
-train_dataset = utils.get_dataset(train_dataset_files, args.view)
-test_dataset = utils.get_dataset(test_dataset_files, args.view)
+train_dataset = utils.get_dataset(train_dataset_files, args.view, train=True)
 print("Done loading data")
 
 # Divide data into training and validation set

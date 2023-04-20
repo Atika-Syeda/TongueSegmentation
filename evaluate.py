@@ -1,13 +1,11 @@
-import argparse
-from tqdm import tqdm
-import os
-import torch
+import argparse, os, torch
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 import numpy as np
-from torchvision import transforms
 from glob import glob
 from model import FMnet
 import utils
+from torch.utils import data
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Training settings ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 parser = argparse.ArgumentParser(description='PyTorch GTSRB')
@@ -19,6 +17,8 @@ parser.add_argument(('--output-dir'), type=str, default='output', metavar='OP',
                     help='Output directory (default: output)')
 parser.add_argument('--model-folder', type=str, default='trained_models', metavar='MF',
                     help='Models path (default: trained_models)')
+parser.add_argument('--view', type=str, default='bottom', metavar='V',
+                    help='View (default: bottom)')
 args = parser.parse_args()
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Setup ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -46,39 +46,43 @@ model_file = os.path.join(model_path, f'model_{max(models)}.pth')
 if args.verbose:
     print(f"Using model: {model_file}")
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Load data ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+try:
+    test_dataset_files = glob(os.path.join(os.getcwd(), 'data', args.view, 'test', '*'))
+except Exception as e:
+    raise Exception("Dataset view name not recognized: {}".format(args.view))
+
+# Load data
+print("Loading data...")
+test_dataset = utils.get_dataset(test_dataset_files, args.view, train=False)
+test_loader = data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4)
+print("Done loading data")
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Model setup ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 state_dict = torch.load(model_file)
-model = GTSRNet(n_classes=43)
+model = FMnet()
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+model = model.to(device);
 model.load_state_dict(state_dict)
 model.eval();
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Evaluate ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-test_dir = os.path.join(os.getcwd(), 'GTSRB/Final_Test/Images')
-output_file = open(os.path.join(output_path, args.model_folder+'_pred.csv'), "w")
-output_file.write("Filename,ClassId\n")
-for f in tqdm(sorted(glob(os.path.join(test_dir, "*.ppm"))), disable=(not args.verbose)):
-    output = torch.zeros([1, 43], dtype=torch.float32)
-    with torch.no_grad():
-        data = utils.transform(utils.pil_loader(f))
-        data = data.view(1, data.size(0), data.size(1), data.size(2))
-        data = Variable(data)
-        output = output.add(model(data))
-        pred = output.data.max(1, keepdim=True)[1]
-        file_id = f[0:5]
-        output_file.write("%s,%d\n" % (file_id, pred))
-output_file.close()
+# compute the intersection over union for each mask
+iou_masks, iou_mask_edges = [], []
+for batch_data in tqdm(test_loader):
+    inputs, masks, mask_edges = batch_data['image'], batch_data['mask'], batch_data['mask_edges']
+    pred_masks, pred_edges, _ = utils.predict(model, inputs, sigmoid=True, threshold=0.5)
+    iou_masks.append(utils.iou(pred_masks, masks.numpy()))
+    iou_mask_edges.append(utils.iou(pred_edges, mask_edges.numpy()))
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Compute test accuracy ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-gt_file = os.path.join(os.getcwd(), 'GTSRB/GT-final_test.csv')
-gt = pd.read_csv(gt_file, sep=';')
-pred_file = os.path.join(output_path, args.model_folder+'_pred.csv')
-pred = pd.read_csv(pred_file, sep=',')
-
 if args.verbose:
-    print("Accuracy: ", (gt['ClassId']==pred['ClassId']).sum()/len(gt)*100, " %")
+    print("Mean IoU for masks: ", np.nanmean(iou_masks))
+    print("Mean IoU for mask edges: ", np.nanmean(iou_mask_edges))
 # Write accuracy to file
-with open(os.path.join(output_path, args.model_folder+'_accuracy.txt'), 'w') as f:
-    f.write(str((gt['ClassId']==pred['ClassId']).sum()/len(gt)*100))
+with open(os.path.join(output_path, f'model_{max(models)}'+'_accuracy.txt'), 'w') as f:
+    f.write("mask IoU: "+str(np.nanmean(iou_masks))+"\n")
+    f.write("mask edges IoU: "+str(np.nanmean(iou_mask_edges)))
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Plot restuls ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
