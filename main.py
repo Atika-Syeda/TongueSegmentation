@@ -14,11 +14,11 @@ from model import FMnet
 parser = argparse.ArgumentParser(description='PyTorch DLCV')
 parser.add_argument('--batch-size', type=int, default=8, metavar='N',
                     help='input batch size for training (default: 8)')
-parser.add_argument('--epochs', type=int, default=50, metavar='N',
-                    help='number of epochs to train (default: 50)')
+parser.add_argument('--epochs', type=int, default=150, metavar='N',
+                    help='number of epochs to train (default: 150)')
 parser.add_argument('--lr', type=float, default=0.001, metavar='LR',
                     help='learning rate (default: 0.001)')
-parser.add_argument('--weight-decay', type=float, default=0.9, metavar='WD',
+parser.add_argument('--weight-decay', type=float, default=0.001, metavar='WD',
                     help='weight decay (default: 0.9)')
 parser.add_argument('--seed', type=int, default=1, metavar='S',
                     help='random seed (default: 1)')
@@ -100,8 +100,19 @@ else:
     LR[-6:-3] = LR[-1]/10
     LR[-3:] = LR[-1]/25
 
+# Plot the learning rate schedule
+fig, ax = plt.subplots(1, 1, figsize=(5, 5), dpi=100)
+ax.plot(LR)
+ax.set_xlabel('Epochs')
+ax.set_ylabel('Learning Rate')
+ax.set_title('Learning Rate Scheduler')
+# hide the spines between ax and ax2
+ax.spines['right'].set_visible(False)
+ax.spines['top'].set_visible(False)
+fig.savefig(os.path.join(output_path, 'LR_scheduler.png'))
+
 optimizer = optim.Adam(model.parameters(), lr=LR[0], weight_decay=args.weight_decay)
-scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=5, factor=0.5, verbose=True)
+#scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=5, factor=0.5, verbose=True)
 
 # Loss functions    
 loss_fn = nn.BCEWithLogitsLoss() 
@@ -187,6 +198,8 @@ for epoch in tqdm(range(args.epochs), disable=not(args.verbose)):
     epoch_val_acc.append(avg_val_acc*100)
     model_file = os.path.join(trained_models_path, 'model_' + str(epoch) + '.pth')
     torch.save(model.state_dict(), model_file)
+    #if epoch > 9:
+    #    break
 
 if args.verbose:
     print("Training completed!")

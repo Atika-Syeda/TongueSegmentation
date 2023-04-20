@@ -16,12 +16,10 @@ class FMnet(nn.Module):
         channels=[16, 32, 64, 128, 200],
         device=['cuda' if torch.cuda.is_available() else 'cpu'][0],
         kernel=3,
-        shape=(256, 256),
         n_upsample=4,
     ):
         super().__init__()
         self.n_upsample = n_upsample
-        self.image_shape = shape
         self.device = device
 
         self.Conv = nn.Sequential()
@@ -55,7 +53,7 @@ class FMnet(nn.Module):
                 nn.Conv2d(channels[-2 - k], output_ch, kernel_size=1, padding=0),
             )
 
-    def forward(self, x, normalize=False, verbose=False):
+    def forward(self, x, verbose=False):
         # encoding path
         xout = []
         x = self.Conv[0](x)
