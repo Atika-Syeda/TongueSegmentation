@@ -193,7 +193,7 @@ for epoch in tqdm(range(args.epochs), disable=not(args.verbose)):
     avg_train_loss, avg_train_acc = train()
     avg_val_loss, avg_val_acc = validation()
     epoch_train_loss.append(avg_train_loss)
-    epoch_train_acc.append(avg_train_acc)
+    epoch_train_acc.append(avg_train_acc*100)
     epoch_val_loss.append(avg_val_loss)
     epoch_val_acc.append(avg_val_acc*100)
     model_file = os.path.join(trained_models_path, 'model_' + str(epoch) + '.pth')
