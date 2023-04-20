@@ -6,6 +6,8 @@ from glob import glob
 from model import FMnet
 import utils
 from torch.utils import data
+from matplotlib import animation
+from IPython.display import HTML
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Training settings ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 parser = argparse.ArgumentParser(description='PyTorch GTSRB')
@@ -85,5 +87,49 @@ with open(os.path.join(output_path, f'model_{max(models)}'+'_accuracy.txt'), 'w'
     f.write("mask edges IoU: "+str(np.nanmean(iou_mask_edges)))
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Plot restuls ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Create an animation of video and model predictions
+fig, ax = plt.subplots(1, 3, figsize=(10, 5), dpi=100)
 
+num_frames = test_dataset.__len__() 
+test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4)
+iterator = iter(test_loader)
+
+start_idx = 0
+batch_data = next(iterator)
+imgs, masks, edges = batch_data['image'], batch_data['mask'], batch_data['mask_edges']
+pred_masks, pred_edges, _ = utils.predict(model, imgs)
+# Plot the first frame
+frame_plot = ax[0].imshow(imgs[0].squeeze(), cmap='gray')
+ax[0].axis("off")
+ax[0].set_title("Frame: " + str(start_idx))
+mask_plot = ax[1].imshow(pred_masks[0].squeeze(), cmap='Greens', alpha=1)
+ax[1].axis("off")
+ax[1].set_title("Predicted mask: " + str(start_idx))
+mask_edge_plot = ax[2].imshow(pred_edges[0].squeeze(), cmap='Reds', alpha=.4)
+ax[2].axis("off")
+ax[2].set_title("Predicted edges: " + str(start_idx))
+
+def animate(i):
+    batch_data = next(iterator)
+    imgs, masks, edges = batch_data['image'], batch_data['mask'], batch_data['mask_edges']
+    pred_masks, pred_edges, _ = utils.predict(model, imgs)
+    frame_plot.set_data(imgs[0].squeeze())
+    ax[0].set_title("Frame: " + str(i))
+    mask_plot.set_data(pred_masks[0].squeeze())
+    ax[1].set_title("Predicted mask: " + str(i))
+    mask_edge_plot.set_data(pred_edges[0].squeeze())
+    ax[2].set_title("Predicted edges: " + str(i))
+    return (frame_plot, mask_plot, mask_edge_plot)
+
+if args.verbose:
+    print("Creating animation...")
+anim = animation.FuncAnimation(fig, animate, frames=num_frames-5, interval=100, repeat=False, blit=True)
+HTML(anim.to_html5_video())
+# save to mp4 using ffmpeg writer
+writervideo = animation.FFMpegWriter(fps=60)
+iterator = iter(test_loader)
+anim.save(os.path.join(output_path, f'model_{max(models)}'+'_pred.mp4'), writer=writervideo)
+if args.verbose:
+    print("Saved animation to file: ", os.path.join(output_path, f'model_{max(models)}'+'_pred.mp4'))
+plt.close()
 
