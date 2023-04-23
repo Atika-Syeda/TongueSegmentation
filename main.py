@@ -76,8 +76,8 @@ if args.verbose:
     print(f"Number of validation samples = {len(val_data)}")
 
 # Create data loader for training and validation
-train_loader = data.DataLoader(train_data, shuffle=True, batch_size=args.batch_size)
-val_loader = data.DataLoader(val_data, shuffle=True, batch_size=args.batch_size)
+train_loader = data.DataLoader(train_data, shuffle=True, batch_size=args.batch_size, num_workers=16)
+val_loader = data.DataLoader(val_data, shuffle=False, batch_size=args.batch_size, num_workers=16)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Model settings ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 model = FMnet() 
