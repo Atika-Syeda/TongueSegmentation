@@ -113,7 +113,7 @@ def train():
     train_loss = 0
     train_acc = []
     n_batches = 0
-    for train_batch in train_loader:
+    for train_batch in tqdm(train_loader, desc="Train Loop"):
         images = train_batch["image"].to(device, dtype=torch.float32)
         mask = train_batch["mask"].to(device, dtype=torch.float32)
         mask_edges = train_batch["mask_edges"].to(device, dtype=torch.float32)
@@ -146,7 +146,7 @@ def validation():
     n_batches = 0
     validation_acc = [] 
     
-    for val_batch in val_loader:
+    for val_batch in tqdm(val_loader, desc="Validation Loop"):
         images = val_batch["image"].to(device, dtype=torch.float32)
         mask = val_batch["mask"].to(device, dtype=torch.float32)
         mask_edges = val_batch["mask_edges"].to(device, dtype=torch.float32)
@@ -174,7 +174,12 @@ epoch_val_loss, epoch_val_acc = [], []
 
 if args.verbose:
     print("Training started...")
-for epoch in tqdm(range(args.epochs), disable=not(args.verbose)):
+best_val_loss = float('inf')
+early_stopping_counter = 0
+pbar = tqdm(range(args.epochs), disable=not(args.verbose), desc="Epoch Loop")
+for epoch in pbar:
+    if early_stopping_counter >= 10:
+        break
     # Set learning rate
     for param_group in optimizer.param_groups:
         param_group["lr"] = LR[epoch]
@@ -185,8 +190,14 @@ for epoch in tqdm(range(args.epochs), disable=not(args.verbose)):
     epoch_train_acc.append(avg_train_acc)
     epoch_val_loss.append(avg_val_loss)
     epoch_val_acc.append(avg_val_acc)
-    model_file = os.path.join(trained_models_path, 'model_' + str(epoch) + '.pth')
-    torch.save(model.state_dict(), model_file)
+    model_file = os.path.join(trained_models_path, 'model_best.pth')
+    if avg_val_loss < best_val_loss:
+        torch.save(model.state_dict(), model_file)
+        best_val_loss = avg_val_loss
+        early_stopping_counter = 0
+    else:
+        early_stopping_counter += 1
+    pbar.set_postfix({'val_loss': avg_val_loss, 'best_val_loss': best_val_loss, 'early_stopping_counter': early_stopping_counter})
 
 if args.verbose:
     print("Training completed!")
