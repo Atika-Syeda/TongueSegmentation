@@ -367,7 +367,7 @@ def load_data(dat_filepath, image_field_name='assembledRandomizedClips_bottom', 
         mask_distance_to_boundary = np.rot90(mask_distance_to_boundary, 1, (1, 2)).copy()
     return img, mask, mask_distance_to_boundary
 
-def get_dataset(dataset_files, view, train):
+def get_dataset(dataset_files, view, train, img_size=(256,256)):
     dataset = []
     for dataset_file in dataset_files:
         if 'goldberg' in dataset_file and 'bottom' in view:
@@ -376,7 +376,7 @@ def get_dataset(dataset_files, view, train):
             rotate = False
         imgs, masks, mask_dist_to_boundary = utils.load_data(dataset_file, image_field_name='imgs', mask_field_name='masks', rotate=rotate)
         bbox = [0, imgs.shape[1], 0, imgs.shape[2]] # Bounding box for the frames [x1, x2, y1, y2]
-        dat = TongueMaskDataset(imgs, masks, mask_dist_to_boundary, bbox=bbox, img_size=(128,128), train=train)
+        dat = TongueMaskDataset(imgs, masks, mask_dist_to_boundary, bbox=bbox, img_size=img_size, train=train)
         dataset.append(dat)
         concat_dataset = ConcatDataset(dataset)
     return concat_dataset
@@ -396,4 +396,3 @@ def predict(net, im_input, sigmoid=True, threshold=0, device=['cuda' if torch.cu
             mask_edges_pred[mask_edges_pred <= threshold] = 0
 
     return mask_pred.cpu().numpy(), mask_edges_pred.cpu().numpy(), mask_dist_pred.cpu().numpy()
-    

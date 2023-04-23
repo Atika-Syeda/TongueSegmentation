@@ -74,8 +74,8 @@ if args.verbose:
     print(f"Number of validation samples = {len(val_data)}")
 
 # Create data loader for training and validation
-train_loader = data.DataLoader(train_data, shuffle=True, batch_size=args.batch_size)
-val_loader = data.DataLoader(val_data, shuffle=True, batch_size=args.batch_size)
+train_loader = data.DataLoader(train_data, shuffle=True, batch_size=args.batch_size, num_workers=16)
+val_loader = data.DataLoader(val_data, shuffle=False, batch_size=args.batch_size, num_workers=16)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Model settings ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 model = FMnet() 
@@ -122,7 +122,7 @@ def train():
     train_loss = 0
     train_acc = []
     n_batches = 0
-    for train_batch in train_loader:
+    for train_batch in tqdm(train_loader, desc="Train Loop"):
         images = train_batch["image"].to(device, dtype=torch.float32)
         mask = train_batch["mask"].to(device, dtype=torch.float32)
         mask_edges = train_batch["mask_edges"].to(device, dtype=torch.float32)
@@ -155,7 +155,7 @@ def validation():
     n_batches = 0
     validation_acc = [] 
     
-    for val_batch in val_loader:
+    for val_batch in tqdm(val_loader, desc="Validation Loop"):
         images = val_batch["image"].to(device, dtype=torch.float32)
         mask = val_batch["mask"].to(device, dtype=torch.float32)
         mask_edges = val_batch["mask_edges"].to(device, dtype=torch.float32)

@@ -55,10 +55,12 @@ except Exception as e:
     raise Exception("Dataset view name not recognized: {}".format(args.view))
 
 # Load data
-print("Loading data...")
+if args.verbose:
+    print("Loading data...")
 test_dataset = utils.get_dataset(test_dataset_files, args.view, train=False)
-test_loader = data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4)
-print("Done loading data")
+test_loader = data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=16)
+if args.verbose:
+    print("Done loading data")
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Model setup ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 state_dict = torch.load(model_file)
@@ -91,7 +93,7 @@ with open(os.path.join(output_path, f'model_{max(models)}'+'_accuracy.txt'), 'w'
 fig, ax = plt.subplots(1, 3, figsize=(10, 5), dpi=100)
 
 num_frames = test_dataset.__len__() 
-test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4)
+test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=16)
 iterator = iter(test_loader)
 
 start_idx = 0
