@@ -110,7 +110,7 @@ ax.spines['top'].set_visible(False)
 fig.savefig(os.path.join(output_path, 'LR_scheduler.png'))
 
 optimizer = optim.Adam(model.parameters(), lr=LR[0], weight_decay=args.weight_decay)
-#scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=5, factor=0.5, verbose=True)
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=5, factor=0.5, verbose=True)
 
 # Loss functions    
 loss_fn = nn.BCEWithLogitsLoss() 
@@ -173,6 +173,7 @@ def validation():
         n_batches += 1
 
     validation_loss /= n_batches
+    scheduler.step(np.around(validation_loss,2))
     validation_acc = np.nanmean(validation_acc)
 
     return validation_loss, validation_acc
@@ -183,21 +184,30 @@ epoch_val_loss, epoch_val_acc = [], []
 
 if args.verbose:
     print("Training started...")
-for epoch in tqdm(range(args.epochs), disable=not(args.verbose)):
+best_val_loss = float('inf')
+early_stopping_counter = 0
+pbar = tqdm(range(args.epochs), disable=not(args.verbose), desc="Epoch Loop")
+for epoch in pbar:
+    if early_stopping_counter >= 30:
+        break
     # Set learning rate
-    for param_group in optimizer.param_groups:
-        param_group["lr"] = LR[epoch]
+    #for param_group in optimizer.param_groups:
+    #    param_group["lr"] = LR[epoch]
     utils.set_seed(epoch)
     avg_train_loss, avg_train_acc = train()
     avg_val_loss, avg_val_acc = validation()
     epoch_train_loss.append(avg_train_loss)
-    epoch_train_acc.append(avg_train_acc*100)
+    epoch_train_acc.append(avg_train_acc)
     epoch_val_loss.append(avg_val_loss)
-    epoch_val_acc.append(avg_val_acc*100)
-    model_file = os.path.join(trained_models_path, 'model_' + str(epoch) + '.pth')
-    torch.save(model.state_dict(), model_file)
-    #if epoch > 9:
-    #    break
+    epoch_val_acc.append(avg_val_acc)
+    model_file = os.path.join(trained_models_path, 'model_best.pth')
+    if avg_val_loss < best_val_loss:
+        torch.save(model.state_dict(), model_file)
+        best_val_loss = avg_val_loss
+        early_stopping_counter = 0
+    else:
+        early_stopping_counter += 1
+    pbar.set_postfix({'val_loss': avg_val_loss, 'best_val_loss': best_val_loss, 'early_stopping_counter': early_stopping_counter})
 
 if args.verbose:
     print("Training completed!")
