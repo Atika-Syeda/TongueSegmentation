@@ -10,15 +10,19 @@ from torch.utils import data
 from glob import glob
 from model import FMnet
 
+import sys
+sys.path.append("./pytorch-nested-unet")
+from archs import NestedUNet
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Training settings ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 parser = argparse.ArgumentParser(description='PyTorch DLCV')
 parser.add_argument('--batch-size', type=int, default=8, metavar='N',
                     help='input batch size for training (default: 8)')
-parser.add_argument('--epochs', type=int, default=50, metavar='N',
-                    help='number of epochs to train (default: 50)')
+parser.add_argument('--epochs', type=int, default=150, metavar='N',
+                    help='number of epochs to train (default: 150)')
 parser.add_argument('--lr', type=float, default=0.001, metavar='LR',
                     help='learning rate (default: 0.001)')
-parser.add_argument('--weight-decay', type=float, default=0.9, metavar='WD',
+parser.add_argument('--weight-decay', type=float, default=0.001, metavar='WD',
                     help='weight decay (default: 0.9)')
 parser.add_argument('--seed', type=int, default=1, metavar='S',
                     help='random seed (default: 1)')
@@ -30,6 +34,8 @@ parser.add_argument('--data-augmentation', type=bool, default=False, metavar='DA
                     help='Data augmentation (default: False)')
 parser.add_argument('--view', type=str, default='bottom', metavar='V',
                     help='View (default: bottom)')
+parser.add_argument('--model-name', type=str, default='FMnet', metavar='MW',
+                    help='Which model to use, options include [FMnet, UNet++, and DeepLabv3] (Default: FMnet)')
 parser.add_argument('--model-weights', type=str, default=None, metavar='MW',
                     help='Model weights (default: None)')
 args = parser.parse_args()
@@ -45,7 +51,7 @@ else:
 	print("GPU not available, using CPU instead")
 
 # Create output directory if it does not exist
-output_path = os.path.join(os.getcwd(), args.output_dir)
+output_path = os.path.join(os.getcwd(), args.output_dir, args.model_name)
 if not os.path.exists(output_path):
     os.makedirs(output_path)
 # Create trained models directory if it does not exist
@@ -56,14 +62,12 @@ if not os.path.exists(trained_models_path):
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Data loaders ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 try:
     train_dataset_files = glob(os.path.join(os.getcwd(), 'data', args.view, 'train', '*'))
-    test_dataset_files = glob(os.path.join(os.getcwd(), 'data', args.view, 'test', '*'))
 except Exception as e:
     raise Exception("Dataset view name not recognized: {}".format(args.view))
 
 # Load data
 print("Loading data...")
-train_dataset = utils.get_dataset(train_dataset_files, args.view)
-test_dataset = utils.get_dataset(test_dataset_files, args.view)
+train_dataset = utils.get_dataset(train_dataset_files, args.view, train=True)
 print("Done loading data")
 
 # Divide data into training and validation set
@@ -80,7 +84,12 @@ train_loader = data.DataLoader(train_data, shuffle=True, batch_size=args.batch_s
 val_loader = data.DataLoader(val_data, shuffle=False, batch_size=args.batch_size, num_workers=16)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Model settings ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-model = FMnet() 
+# TODO update readme
+print(f"Using model: {args.model_name}")
+if args.model_name == 'FMnet':
+    model = FMnet() 
+elif args.model_name == 'UNet++':
+    model = NestedUNet(num_classes=3, input_channels=1)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 model = model.to(device);
 if args.model_weights is not None:
@@ -99,6 +108,17 @@ else:
     LR = np.ones(args.epochs)*learning_rate
     LR[-6:-3] = LR[-1]/10
     LR[-3:] = LR[-1]/25
+
+# Plot the learning rate schedule
+fig, ax = plt.subplots(1, 1, figsize=(5, 5), dpi=100)
+ax.plot(LR)
+ax.set_xlabel('Epochs')
+ax.set_ylabel('Learning Rate')
+ax.set_title('Learning Rate Scheduler')
+# hide the spines between ax and ax2
+ax.spines['right'].set_visible(False)
+ax.spines['top'].set_visible(False)
+fig.savefig(os.path.join(output_path, 'LR_scheduler.png'))
 
 optimizer = optim.Adam(model.parameters(), lr=LR[0], weight_decay=args.weight_decay)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=5, factor=0.5, verbose=True)
@@ -119,7 +139,12 @@ def train():
         mask_edges = train_batch["mask_edges"].to(device, dtype=torch.float32)
         mask_dist_to_boundary = train_batch["mask_dist_to_boundary"].to(device, dtype=torch.float32)
 
-        mask_pred, mask_edges_pred, mask_dist_to_boundary_pred = model(images)
+        if args.model_name == 'FMnet':
+            mask_pred, mask_edges_pred, mask_dist_to_boundary_pred = model(images)
+        else:
+            out = model(images)
+            mask_pred, mask_edges_pred, mask_dist_to_boundary_pred = torch.unsqueeze(out[:, 0, :, :], 1), torch.unsqueeze(out[:, 1, :, :], 1), torch.unsqueeze(out[:, 2, :, :], 1)
+
 
         # Compute loss
         loss = loss_fn(mask_pred, mask) + loss_fn(mask_edges_pred, mask_edges) + 0.1*dist_loss(mask_dist_to_boundary_pred*mask, mask_dist_to_boundary*mask)
@@ -152,7 +177,11 @@ def validation():
         mask_edges = val_batch["mask_edges"].to(device, dtype=torch.float32)
         mask_dist_to_boundary = val_batch["mask_dist_to_boundary"].to(device, dtype=torch.float32)
 
-        mask_pred, mask_edges_pred, mask_dist_to_boundary_pred = model(images)
+        if args.model_name == 'FMnet':
+            mask_pred, mask_edges_pred, mask_dist_to_boundary_pred = model(images)
+        else:
+            out = model(images)
+            mask_pred, mask_edges_pred, mask_dist_to_boundary_pred = torch.unsqueeze(out[:, 0, :, :], 1), torch.unsqueeze(out[:, 1, :, :], 1), torch.unsqueeze(out[:, 2, :, :], 1)
 
         # Compute loss and accuracy
         loss = loss_fn(mask_pred, mask) + loss_fn(mask_edges_pred, mask_edges) + 0.1*dist_loss(mask_dist_to_boundary_pred*mask, mask_dist_to_boundary*mask)
@@ -164,6 +193,7 @@ def validation():
         n_batches += 1
 
     validation_loss /= n_batches
+    scheduler.step(np.around(validation_loss,2))
     validation_acc = np.nanmean(validation_acc)
 
     return validation_loss, validation_acc
@@ -178,11 +208,11 @@ best_val_loss = float('inf')
 early_stopping_counter = 0
 pbar = tqdm(range(args.epochs), disable=not(args.verbose), desc="Epoch Loop")
 for epoch in pbar:
-    if early_stopping_counter >= 10:
+    if early_stopping_counter >= 30:
         break
     # Set learning rate
-    for param_group in optimizer.param_groups:
-        param_group["lr"] = LR[epoch]
+    #for param_group in optimizer.param_groups:
+    #    param_group["lr"] = LR[epoch]
     utils.set_seed(epoch)
     avg_train_loss, avg_train_acc = train()
     avg_val_loss, avg_val_acc = validation()
@@ -193,6 +223,8 @@ for epoch in pbar:
     model_file = os.path.join(trained_models_path, 'model_best.pth')
     if avg_val_loss < best_val_loss:
         torch.save(model.state_dict(), model_file)
+        # save optimizer
+        torch.save(optimizer.state_dict(), os.path.join(trained_models_path, 'optimizer_best.pth'))
         best_val_loss = avg_val_loss
         early_stopping_counter = 0
     else:
@@ -221,7 +253,7 @@ ax[1].plot(epoch_train_acc, label='train', lw=2)
 ax[1].plot(epoch_val_acc, label='val', lw=2)
 ax[1].set_title('Accuracy')
 ax[1].set_xlabel('Epoch')
-ax[1].set_ylabel('Accuracy (%)')
+ax[1].set_ylabel('Accuracy (%) - IoU')
 ax[1].legend()
 # remove right and top spines
 ax[1].spines['right'].set_visible(False)    
@@ -233,4 +265,3 @@ if args.verbose:
     print("Loss and accuracy plots saved to {}".format(os.path.join(output_path, 'loss_acc.png')))
 
 # References:
-
