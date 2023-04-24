@@ -1,20 +1,16 @@
-import argparse
-from tqdm import tqdm
-import os
-import pandas as pd
-import torch
-from torch.autograd import Variable
+import argparse, os, torch
 import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.metrics import confusion_matrix
+from tqdm import tqdm
 import numpy as np
-from torchvision import transforms
 from glob import glob
-from model import GTSRNet
+from model import FMnet
 import utils
+from torch.utils import data
+from matplotlib import animation
+from IPython.display import HTML
 
-# Training settings
-parser = argparse.ArgumentParser(description='PyTorch GTSRB')
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Training settings ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+parser = argparse.ArgumentParser(description='PyTorch DLCV')
 parser.add_argument('--seed', type=int, default=1, metavar='S',
                     help='random seed (default: 1)')
 parser.add_argument('--verbose', type=bool, default=True, metavar='V',
@@ -23,8 +19,11 @@ parser.add_argument(('--output-dir'), type=str, default='output', metavar='OP',
                     help='Output directory (default: output)')
 parser.add_argument('--model-folder', type=str, default='trained_models', metavar='MF',
                     help='Models path (default: trained_models)')
+parser.add_argument('--view', type=str, default='bottom', metavar='V',
+                    help='View (default: bottom)')
 args = parser.parse_args()
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Setup ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 torch.manual_seed(args.seed)
 if torch.cuda.is_available():
     use_gpu = True
@@ -41,60 +40,102 @@ if not os.path.exists(output_path):
 model_path = os.path.join(os.getcwd(), args.output_dir, args.model_folder)
 if not os.path.exists(model_path):
     raise Exception("Model path does not exist")
-# Use last epoch model
-models = glob(os.path.join(model_path, '*.pth'))
-models = [i.split("_")[-1].split(".")[0] for i in models]
-models = [int(i) for i in models]
-model_file = os.path.join(model_path, f'model_{max(models)}.pth')
+# Use best model
+#models = glob(os.path.join(model_path, '*.pth'))
+#models = [i.split("_")[-1].split(".")[0] for i in models]
+#models = [int(i) for i in models]
+#model_file = os.path.join(model_path, f'model_{max(models)}.pth')
+model_file = os.path.join(model_path, 'model_best.pth')
 if args.verbose:
     print(f"Using model: {model_file}")
 
-# Load test data and model
-test_dir = os.path.join(os.getcwd(), 'GTSRB/Final_Test/Images')
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Load data ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+try:
+    test_dataset_files = glob(os.path.join(os.getcwd(), 'data', args.view, 'test', '*'))
+except Exception as e:
+    raise Exception("Dataset view name not recognized: {}".format(args.view))
+
+# Load data
+if args.verbose:
+    print("Loading data...")
+test_dataset = utils.get_dataset(test_dataset_files, args.view, train=False)
+test_loader = data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=16)
+if args.verbose:
+    print("Done loading data")
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Model setup ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 state_dict = torch.load(model_file)
-model = GTSRNet(n_classes=43)
+model = FMnet()
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+model = model.to(device);
 model.load_state_dict(state_dict)
 model.eval();
 
-# Predict test data and write to file
-output_file = open(os.path.join(output_path, args.model_folder+'_pred.csv'), "w")
-output_file.write("Filename,ClassId\n")
-for f in tqdm(sorted(glob(os.path.join(test_dir, "*.ppm"))), disable=(not args.verbose)):
-    output = torch.zeros([1, 43], dtype=torch.float32)
-    with torch.no_grad():
-        data = utils.transform(utils.pil_loader(f))
-        data = data.view(1, data.size(0), data.size(1), data.size(2))
-        data = Variable(data)
-        output = output.add(model(data))
-        pred = output.data.max(1, keepdim=True)[1]
-        file_id = f[0:5]
-        output_file.write("%s,%d\n" % (file_id, pred))
-output_file.close()
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Evaluate ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# compute the intersection over union for each mask
+iou_masks, iou_mask_edges = [], []
+for batch_data in tqdm(test_loader):
+    inputs, masks, mask_edges = batch_data['image'], batch_data['mask'], batch_data['mask_edges']
+    pred_masks, pred_edges, _ = utils.predict(model, inputs, sigmoid=True, threshold=0.5)
+    iou_masks.append(utils.iou(pred_masks, masks.numpy()))
+    iou_mask_edges.append(utils.iou(pred_edges, mask_edges.numpy()))
 
-# Calculate test accuracy
-gt_file = os.path.join(os.getcwd(), 'GTSRB/GT-final_test.csv')
-gt = pd.read_csv(gt_file, sep=';')
-pred_file = os.path.join(output_path, args.model_folder+'_pred.csv')
-pred = pd.read_csv(pred_file, sep=',')
-
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Compute test accuracy ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 if args.verbose:
-    print("Accuracy: ", (gt['ClassId']==pred['ClassId']).sum()/len(gt)*100, " %")
+    print("Mean IoU for masks: ", np.nanmean(iou_masks))
+    print("Mean IoU for mask edges: ", np.nanmean(iou_mask_edges))
 # Write accuracy to file
-with open(os.path.join(output_path, args.model_folder+'_accuracy.txt'), 'w') as f:
-    f.write(str((gt['ClassId']==pred['ClassId']).sum()/len(gt)*100))
+#with open(os.path.join(output_path, f'model_{max(models)}'+'_accuracy.txt'), 'w') as f:
+with open(os.path.join(output_path, 'model_best_accuracy.txt'), 'w') as f:
+    f.write("mask IoU: "+str(np.nanmean(iou_masks))+"\n")
+    f.write("mask edges IoU: "+str(np.nanmean(iou_mask_edges)))
 
-# Plot a confusion matrix
-cm = confusion_matrix(gt['ClassId'], pred['ClassId'])
-cm = (cm.astype('float') / cm.sum(axis=1)[:, np.newaxis])*100
-plt.figure(figsize=(25,20), dpi=300)
-sns.heatmap(cm, annot=True, fmt='.1f', cmap='Blues', square=True, cbar_kws={"shrink": 0.5})
-sns.despine(left=False, right=False, top=False, bottom=False)
-plt.ylabel('True label', fontsize=20)
-plt.xlabel('Predicted label', fontsize=20)
-# change cmap size 
-cbar = plt.gcf().axes[-1]
-cbar.tick_params(labelsize=20)
-# Save confusion matrix
-plt.savefig(os.path.join(output_path, args.model_folder+'_confusion_matrix.png'), bbox_inches='tight', pad_inches=0.1)
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Plot restuls ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Create an animation of video and model predictions
+fig, ax = plt.subplots(1, 3, figsize=(10, 5), dpi=100)
+
+num_frames = test_dataset.__len__() 
+test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=16)
+iterator = iter(test_loader)
+
+start_idx = 0
+batch_data = next(iterator)
+imgs, masks, edges = batch_data['image'], batch_data['mask'], batch_data['mask_edges']
+pred_masks, pred_edges, _ = utils.predict(model, imgs)
+# Plot the first frame
+frame_plot = ax[0].imshow(imgs[0].squeeze(), cmap='gray')
+ax[0].axis("off")
+ax[0].set_title("Frame: " + str(start_idx))
+mask_plot = ax[1].imshow(pred_masks[0].squeeze(), cmap='Greens', alpha=1)
+ax[1].axis("off")
+ax[1].set_title("Predicted mask: " + str(start_idx))
+mask_edge_plot = ax[2].imshow(pred_edges[0].squeeze(), cmap='Reds', alpha=.4)
+ax[2].axis("off")
+ax[2].set_title("Predicted edges: " + str(start_idx))
+
+def animate(i):
+    batch_data = next(iterator)
+    imgs, masks, edges = batch_data['image'], batch_data['mask'], batch_data['mask_edges']
+    pred_masks, pred_edges, _ = utils.predict(model, imgs)
+    frame_plot.set_data(imgs[0].squeeze())
+    ax[0].set_title("Frame: " + str(i))
+    mask_plot.set_data(pred_masks[0].squeeze())
+    ax[1].set_title("Predicted mask: " + str(i))
+    mask_edge_plot.set_data(pred_edges[0].squeeze())
+    ax[2].set_title("Predicted edges: " + str(i))
+    return (frame_plot, mask_plot, mask_edge_plot)
+
 if args.verbose:
-    print("Confusion matrix saved to ", os.path.join(output_path, args.model_folder+"_confusion_matrix.png"))
+    print("Creating animation...")
+anim = animation.FuncAnimation(fig, animate, frames=num_frames-5, interval=100, repeat=False, blit=True)
+HTML(anim.to_html5_video())
+# save to mp4 using ffmpeg writer
+writervideo = animation.FFMpegWriter(fps=60)
+iterator = iter(test_loader)
+#anim.save(os.path.join(output_path, f'model_{max(models)}'+'_pred.mp4'), writer=writervideo)
+anim.save(os.path.join(output_path, 'model_best_pred.mp4'), writer=writervideo)
+if args.verbose:
+    #print("Saved animation to file: ", os.path.join(output_path, f'model_{max(models)}'+'_pred.mp4'))
+    print("Saved animation to file: ", os.path.join(output_path, 'model_best_pred.mp4'))
+plt.close()
+
