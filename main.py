@@ -18,10 +18,10 @@ parser.add_argument('--epochs', type=int, default=150, metavar='N',
                     help='number of epochs to train (default: 150)')
 parser.add_argument('--lr', type=float, default=0.001, metavar='LR',
                     help='learning rate (default: 0.001)')
-parser.add_argument('--weight-decay', type=float, default=0.001, metavar='WD',
-                    help='weight decay (default: 0.9)')
-parser.add_argument('--seed', type=int, default=1, metavar='S',
-                    help='random seed (default: 1)')
+parser.add_argument('--weight-decay', type=float, default=0.00, metavar='WD',
+                    help='weight decay (default: 0.0)')
+parser.add_argument('--seed', type=int, default=0, metavar='S',
+                    help='random seed (default: 0)')
 parser.add_argument('--verbose', type=bool, default=True, metavar='V',
                     help='verbose (default: True)')   
 parser.add_argument(('--output-dir'), type=str, default='output', metavar='OP',
@@ -131,7 +131,7 @@ def train():
         mask_pred, mask_edges_pred, mask_dist_to_boundary_pred = model(images)
 
         # Compute loss
-        loss = loss_fn(mask_pred, mask) + loss_fn(mask_edges_pred, mask_edges) + 0.1*dist_loss(mask_dist_to_boundary_pred*mask, mask_dist_to_boundary*mask)
+        loss = loss_fn(mask_pred, mask) + 0.5*loss_fn(mask_edges_pred, mask_edges) #+ 0.1*dist_loss(mask_dist_to_boundary_pred*mask, mask_dist_to_boundary*mask)
         train_loss += loss.item()
 
         optimizer.zero_grad()
@@ -164,7 +164,7 @@ def validation():
         mask_pred, mask_edges_pred, mask_dist_to_boundary_pred = model(images)
 
         # Compute loss and accuracy
-        loss = loss_fn(mask_pred, mask) + loss_fn(mask_edges_pred, mask_edges) + 0.1*dist_loss(mask_dist_to_boundary_pred*mask, mask_dist_to_boundary*mask)
+        loss = loss_fn(mask_pred, mask) + 0.5*loss_fn(mask_edges_pred, mask_edges) #+ 0.1*dist_loss(mask_dist_to_boundary_pred*mask, mask_dist_to_boundary*mask)
         validation_loss += loss.item()
 
         mask_pred[mask_pred > 0.5] = 1
