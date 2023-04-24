@@ -10,7 +10,7 @@ from matplotlib import animation
 from IPython.display import HTML
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Training settings ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-parser = argparse.ArgumentParser(description='PyTorch GTSRB')
+parser = argparse.ArgumentParser(description='PyTorch DLCV')
 parser.add_argument('--seed', type=int, default=1, metavar='S',
                     help='random seed (default: 1)')
 parser.add_argument('--verbose', type=bool, default=True, metavar='V',
@@ -40,11 +40,12 @@ if not os.path.exists(output_path):
 model_path = os.path.join(os.getcwd(), args.output_dir, args.model_folder)
 if not os.path.exists(model_path):
     raise Exception("Model path does not exist")
-# Use last epoch model
-models = glob(os.path.join(model_path, '*.pth'))
-models = [i.split("_")[-1].split(".")[0] for i in models]
-models = [int(i) for i in models]
-model_file = os.path.join(model_path, f'model_{max(models)}.pth')
+# Use best model
+#models = glob(os.path.join(model_path, '*.pth'))
+#models = [i.split("_")[-1].split(".")[0] for i in models]
+#models = [int(i) for i in models]
+#model_file = os.path.join(model_path, f'model_{max(models)}.pth')
+model_file = os.path.join(model_path, 'model_best.pth')
 if args.verbose:
     print(f"Using model: {model_file}")
 
@@ -84,7 +85,8 @@ if args.verbose:
     print("Mean IoU for masks: ", np.nanmean(iou_masks))
     print("Mean IoU for mask edges: ", np.nanmean(iou_mask_edges))
 # Write accuracy to file
-with open(os.path.join(output_path, f'model_{max(models)}'+'_accuracy.txt'), 'w') as f:
+#with open(os.path.join(output_path, f'model_{max(models)}'+'_accuracy.txt'), 'w') as f:
+with open(os.path.join(output_path, 'model_best_accuracy.txt'), 'w') as f:
     f.write("mask IoU: "+str(np.nanmean(iou_masks))+"\n")
     f.write("mask edges IoU: "+str(np.nanmean(iou_mask_edges)))
 
@@ -130,8 +132,10 @@ HTML(anim.to_html5_video())
 # save to mp4 using ffmpeg writer
 writervideo = animation.FFMpegWriter(fps=60)
 iterator = iter(test_loader)
-anim.save(os.path.join(output_path, f'model_{max(models)}'+'_pred.mp4'), writer=writervideo)
+#anim.save(os.path.join(output_path, f'model_{max(models)}'+'_pred.mp4'), writer=writervideo)
+anim.save(os.path.join(output_path, 'model_best_pred.mp4'), writer=writervideo)
 if args.verbose:
-    print("Saved animation to file: ", os.path.join(output_path, f'model_{max(models)}'+'_pred.mp4'))
+    #print("Saved animation to file: ", os.path.join(output_path, f'model_{max(models)}'+'_pred.mp4'))
+    print("Saved animation to file: ", os.path.join(output_path, 'model_best_pred.mp4'))
 plt.close()
 

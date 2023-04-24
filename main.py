@@ -203,6 +203,8 @@ for epoch in pbar:
     model_file = os.path.join(trained_models_path, 'model_best.pth')
     if avg_val_loss < best_val_loss:
         torch.save(model.state_dict(), model_file)
+        # save optimizer
+        torch.save(optimizer.state_dict(), os.path.join(trained_models_path, 'optimizer_best.pth'))
         best_val_loss = avg_val_loss
         early_stopping_counter = 0
     else:
