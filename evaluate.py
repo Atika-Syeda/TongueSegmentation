@@ -7,6 +7,7 @@ import utils
 from torch.utils import data
 from matplotlib import animation
 from IPython.display import HTML
+import time
 
 from model import FMnet
 from NestedUNet import NestedUNet
@@ -89,10 +90,12 @@ model.eval();
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Evaluate ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # compute the intersection over union and dice coefficient for each mask
-iou_masks, iou_mask_edges, dice_masks, dice_mask_edges = [], [], [], []
+iou_masks, iou_mask_edges, dice_masks, dice_mask_edges, inference_times = [], [], [], [], []
 for batch_data in tqdm(test_loader):
     inputs, masks, mask_edges = batch_data['image'], batch_data['mask'], batch_data['mask_edges']
+    start_time = time.time()
     pred_masks, pred_edges, _ = utils.predict(model, inputs, sigmoid=True, threshold=0.5, model_name=args.model_name)
+    inference_times.append(time.time() - start_time)
     iou_masks.append(utils.iou(pred_masks, masks.numpy()))
     iou_mask_edges.append(utils.iou(pred_edges, mask_edges.numpy()))
     dice_masks.append(utils.dice(pred_masks, masks.numpy()))
@@ -104,6 +107,8 @@ if args.verbose:
     print("Mean IoU for mask edges: ", np.nanmean(iou_mask_edges))
     print("Mean Dice Coefficient for masks: ", np.nanmean(dice_masks))
     print("Mean Dice Coefficient for mask edges: ", np.nanmean(dice_mask_edges))
+    print("Mean Inference Time (ms): ", np.nanmean(inference_times) * 1000)
+    print("Model parameters: ", sum(param.numel() for param in model.parameters()))
 # Write accuracy to file
 #with open(os.path.join(output_path, f'model_{max(models)}'+'_accuracy.txt'), 'w') as f:
 with open(os.path.join(output_path, 'model_best_accuracy.txt'), 'w') as f:
@@ -111,6 +116,8 @@ with open(os.path.join(output_path, 'model_best_accuracy.txt'), 'w') as f:
     f.write("mask edges IoU: " + str(np.nanmean(iou_mask_edges)) + "\n")
     f.write("mask Dice Coefficient: " + str(np.nanmean(dice_masks)) + "\n")
     f.write("mask edges Dice Coefficient: " + str(np.nanmean(dice_mask_edges)) + "\n")
+    f.write("Mean Inference Time (ms): " + str(np.nanmean(inference_times) * 1000) + "\n")
+    f.write("Model parameters: " + str(sum(param.numel() for param in model.parameters())) + "\n")
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Plot restuls ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Create an animation of video and model predictions
