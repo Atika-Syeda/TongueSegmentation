@@ -8,11 +8,10 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from torch.utils import data
 from glob import glob
-from model import FMnet
 
-import sys
-sys.path.append("./pytorch-nested-unet")
-from archs import NestedUNet
+from model import FMnet
+from NestedUNet import NestedUNet
+from torchvision.models.segmentation import deeplabv3_resnet50, deeplabv3_resnet101, deeplabv3_mobilenet_v3_large
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Training settings ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 parser = argparse.ArgumentParser(description='PyTorch DLCV')
@@ -22,10 +21,10 @@ parser.add_argument('--epochs', type=int, default=150, metavar='N',
                     help='number of epochs to train (default: 150)')
 parser.add_argument('--lr', type=float, default=0.001, metavar='LR',
                     help='learning rate (default: 0.001)')
-parser.add_argument('--weight-decay', type=float, default=0.001, metavar='WD',
-                    help='weight decay (default: 0.9)')
-parser.add_argument('--seed', type=int, default=1, metavar='S',
-                    help='random seed (default: 1)')
+parser.add_argument('--weight-decay', type=float, default=0.00, metavar='WD',
+                    help='weight decay (default: 0.0)')
+parser.add_argument('--seed', type=int, default=0, metavar='S',
+                    help='random seed (default: 0)')
 parser.add_argument('--verbose', type=bool, default=True, metavar='V',
                     help='verbose (default: True)')   
 parser.add_argument(('--output-dir'), type=str, default='output', metavar='OP',
@@ -35,7 +34,7 @@ parser.add_argument('--data-augmentation', type=bool, default=False, metavar='DA
 parser.add_argument('--view', type=str, default='bottom', metavar='V',
                     help='View (default: bottom)')
 parser.add_argument('--model-name', type=str, default='FMnet', metavar='MW',
-                    help='Which model to use, options include [FMnet, UNet++, and DeepLabv3] (Default: FMnet)')
+                    help='Which model to use, options include [FMnet, UNet++, DeepLabv3_ResNet50, DeepLabv3_ResNet101, and DeepLabv3_MobileNet] (Default: FMnet)')
 parser.add_argument('--model-weights', type=str, default=None, metavar='MW',
                     help='Model weights (default: None)')
 args = parser.parse_args()
@@ -90,6 +89,13 @@ if args.model_name == 'FMnet':
     model = FMnet() 
 elif args.model_name == 'UNet++':
     model = NestedUNet(num_classes=3, input_channels=1)
+elif args.model_name == 'DeepLabv3_ResNet50':
+    model = deeplabv3_resnet50(weights=None, weights_backbone=None, num_classes=3)
+elif args.model_name == 'DeepLabv3_ResNet101':
+    model = deeplabv3_resnet101(weights=None, weights_backbone=None, num_classes=3)
+elif args.model_name == 'DeepLabv3_MobileNet':
+    model = deeplabv3_mobilenet_v3_large(weights=None, weights_backbone=None, num_classes=3)
+
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 model = model.to(device);
 if args.model_weights is not None:
@@ -142,12 +148,15 @@ def train():
         if args.model_name == 'FMnet':
             mask_pred, mask_edges_pred, mask_dist_to_boundary_pred = model(images)
         else:
-            out = model(images)
+            if "DeepLabv3" in args.model_name:
+                out = model(images.repeat(1, 3, 1, 1))['out']
+            else:
+                out = model(images)
             mask_pred, mask_edges_pred, mask_dist_to_boundary_pred = torch.unsqueeze(out[:, 0, :, :], 1), torch.unsqueeze(out[:, 1, :, :], 1), torch.unsqueeze(out[:, 2, :, :], 1)
 
 
         # Compute loss
-        loss = loss_fn(mask_pred, mask) + loss_fn(mask_edges_pred, mask_edges) + 0.1*dist_loss(mask_dist_to_boundary_pred*mask, mask_dist_to_boundary*mask)
+        loss = loss_fn(mask_pred, mask) + 0.5*loss_fn(mask_edges_pred, mask_edges) #+ 0.1*dist_loss(mask_dist_to_boundary_pred*mask, mask_dist_to_boundary*mask)
         train_loss += loss.item()
 
         optimizer.zero_grad()
@@ -180,11 +189,14 @@ def validation():
         if args.model_name == 'FMnet':
             mask_pred, mask_edges_pred, mask_dist_to_boundary_pred = model(images)
         else:
-            out = model(images)
+            if "DeepLabv3" in args.model_name:
+                out = model(images.repeat(1, 3, 1, 1))['out']
+            else:
+                out = model(images)
             mask_pred, mask_edges_pred, mask_dist_to_boundary_pred = torch.unsqueeze(out[:, 0, :, :], 1), torch.unsqueeze(out[:, 1, :, :], 1), torch.unsqueeze(out[:, 2, :, :], 1)
 
         # Compute loss and accuracy
-        loss = loss_fn(mask_pred, mask) + loss_fn(mask_edges_pred, mask_edges) + 0.1*dist_loss(mask_dist_to_boundary_pred*mask, mask_dist_to_boundary*mask)
+        loss = loss_fn(mask_pred, mask) + 0.5*loss_fn(mask_edges_pred, mask_edges) #+ 0.1*dist_loss(mask_dist_to_boundary_pred*mask, mask_dist_to_boundary*mask)
         validation_loss += loss.item()
 
         mask_pred[mask_pred > 0.5] = 1

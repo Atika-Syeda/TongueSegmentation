@@ -64,6 +64,14 @@ def iou(pred, target):
     union = pred.sum() + target.sum()
     return (intersection) / (union - intersection)
 
+def dice(pred, target):
+    intersect = np.sum(pred * target)
+    fsum = np.sum(pred)
+    ssum = np.sum(target)
+    dice = (2 * intersect ) / (fsum + ssum)
+    dice = np.mean(dice)
+    return dice 
+
 def get_batch_imgs(video_path, frame_start_idx, grayscale=True, batch_size=1, crop=True, img_size=(144, 192)):
     """
     Parameters
@@ -381,11 +389,19 @@ def get_dataset(dataset_files, view, train, img_size=(256,256)):
         concat_dataset = ConcatDataset(dataset)
     return concat_dataset
 
-def predict(net, im_input, sigmoid=True, threshold=0, device=['cuda' if torch.cuda.is_available() else 'cpu'][0]):
+def predict(net, im_input, sigmoid=True, threshold=0, device=['cuda' if torch.cuda.is_available() else 'cpu'][0], model_name='FMnet'):
     # Predict
     net.eval()
     with torch.no_grad():
-        mask_pred, mask_edges_pred, mask_dist_pred = net(im_input.to(device, dtype=torch.float32))
+        if model_name == 'FMnet':
+            mask_pred, mask_edges_pred, mask_dist_pred = net(im_input.to(device, dtype=torch.float32))
+        else:
+            if "DeepLabv3" in model_name:
+                out = net((im_input.to(device, dtype=torch.float32)).repeat(1, 3, 1, 1))['out']
+            else:
+                out = net(im_input.to(device, dtype=torch.float32))
+            mask_pred, mask_edges_pred, mask_dist_pred = torch.unsqueeze(out[:, 0, :, :], 1), torch.unsqueeze(out[:, 1, :, :], 1), torch.unsqueeze(out[:, 2, :, :], 1)
+
         if sigmoid:
             mask_pred = torch.sigmoid(mask_pred)
             mask_edges_pred = torch.sigmoid(mask_edges_pred)
