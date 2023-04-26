@@ -32,7 +32,7 @@ parser.add_argument('--view', type=str, default='bottom', metavar='V',
                     help='View (default: bottom)')
 parser.add_argument('--model-weights', type=str, default=None, metavar='MW',
                     help='Model weights (default: None)')
-parser.add_argument('--model-name', type=str, default='FMnet', metavar='MW',
+parser.add_argument('--model-name', type=str, default='FMnet', metavar='MN',
                     help='Which model to use, options include [FMnet, UNet, UNet++, and DeepLabv3] (Default: FMnet)')
 args = parser.parse_args()
 
