@@ -8,7 +8,10 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from torch.utils import data
 from glob import glob
+
 from model import FMnet, UNet
+from NestedUNet import NestedUNet
+from torchvision.models.segmentation import deeplabv3_resnet50, deeplabv3_resnet101, deeplabv3_mobilenet_v3_large
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Training settings ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 parser = argparse.ArgumentParser(description='PyTorch DLCV')
@@ -30,10 +33,10 @@ parser.add_argument('--data-augmentation', type=bool, default=False, metavar='DA
                     help='Data augmentation (default: False)')
 parser.add_argument('--view', type=str, default='bottom', metavar='V',
                     help='View (default: bottom)')
+parser.add_argument('--model-name', type=str, default='FMnet', metavar='MW',
+                    help='Which model to use, options include [FMnet, UNet, UNet++, DeepLabv3_ResNet50, DeepLabv3_ResNet101, and DeepLabv3_MobileNet] (Default: FMnet)')
 parser.add_argument('--model-weights', type=str, default=None, metavar='MW',
                     help='Model weights (default: None)')
-parser.add_argument('--model-name', type=str, default='FMnet', metavar='MN',
-                    help='Which model to use, options include [FMnet, UNet, UNet++, and DeepLabv3] (Default: FMnet)')
 args = parser.parse_args()
 
 torch.manual_seed(args.seed)
@@ -47,7 +50,7 @@ else:
 	print("GPU not available, using CPU instead")
 
 # Create output directory if it does not exist
-output_path = os.path.join(os.getcwd(), args.output_dir)
+output_path = os.path.join(os.getcwd(), args.output_dir, args.model_name)
 if not os.path.exists(output_path):
     os.makedirs(output_path)
 # Create trained models directory if it does not exist
@@ -85,6 +88,14 @@ if args.model_name == 'FMnet':
     model = FMnet() 
 elif args.model_name == 'UNet':
     model = UNet()
+elif args.model_name == 'UNet++':
+    model = NestedUNet(num_classes=3, input_channels=1)
+elif args.model_name == 'DeepLabv3_ResNet50':
+    model = deeplabv3_resnet50(weights=None, weights_backbone=None, num_classes=3)
+elif args.model_name == 'DeepLabv3_ResNet101':
+    model = deeplabv3_resnet101(weights=None, weights_backbone=None, num_classes=3)
+elif args.model_name == 'DeepLabv3_MobileNet':
+    model = deeplabv3_mobilenet_v3_large(weights=None, weights_backbone=None, num_classes=3)
 else:
     raise Exception("Model name not recognized: {}".format(args.model_name))
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -136,7 +147,14 @@ def train():
         mask_edges = train_batch["mask_edges"].to(device, dtype=torch.float32)
         mask_dist_to_boundary = train_batch["mask_dist_to_boundary"].to(device, dtype=torch.float32)
 
-        mask_pred, mask_edges_pred, mask_dist_to_boundary_pred = model(images)
+        if args.model_name in ['FMnet', 'UNet']:
+            mask_pred, mask_edges_pred, mask_dist_to_boundary_pred = model(images)
+        else:
+            if "DeepLabv3" in args.model_name:
+                out = model(images.repeat(1, 3, 1, 1))['out']
+            else:
+                out = model(images)
+            mask_pred, mask_edges_pred, mask_dist_to_boundary_pred = torch.unsqueeze(out[:, 0, :, :], 1), torch.unsqueeze(out[:, 1, :, :], 1), torch.unsqueeze(out[:, 2, :, :], 1)
 
         # Compute loss
         loss = loss_fn(mask_pred, mask) + 0.5*loss_fn(mask_edges_pred, mask_edges) #+ 0.1*dist_loss(mask_dist_to_boundary_pred*mask, mask_dist_to_boundary*mask)
@@ -169,7 +187,14 @@ def validation():
         mask_edges = val_batch["mask_edges"].to(device, dtype=torch.float32)
         mask_dist_to_boundary = val_batch["mask_dist_to_boundary"].to(device, dtype=torch.float32)
 
-        mask_pred, mask_edges_pred, mask_dist_to_boundary_pred = model(images)
+        if args.model_name in ['FMnet', 'UNet']:
+            mask_pred, mask_edges_pred, mask_dist_to_boundary_pred = model(images)
+        else:
+            if "DeepLabv3" in args.model_name:
+                out = model(images.repeat(1, 3, 1, 1))['out']
+            else:
+                out = model(images)
+            mask_pred, mask_edges_pred, mask_dist_to_boundary_pred = torch.unsqueeze(out[:, 0, :, :], 1), torch.unsqueeze(out[:, 1, :, :], 1), torch.unsqueeze(out[:, 2, :, :], 1)
 
         # Compute loss and accuracy
         loss = loss_fn(mask_pred, mask) + 0.5*loss_fn(mask_edges_pred, mask_edges) #+ 0.1*dist_loss(mask_dist_to_boundary_pred*mask, mask_dist_to_boundary*mask)
@@ -253,4 +278,3 @@ if args.verbose:
     print("Loss and accuracy plots saved to {}".format(os.path.join(output_path, 'loss_acc.png')))
 
 # References:
-
