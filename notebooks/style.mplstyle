@@ -1,0 +1,27 @@
+axes.titlesize : 16
+axes.labelsize : 14
+xtick.labelsize : 14
+ytick.labelsize : 14
+legend.labelspacing : 0.2
+axes.labelpad : 2
+xtick.major.size : 5
+xtick.major.width : 0.5
+xtick.major.pad : 1
+ytick.major.size : 3.5
+ytick.major.width : 0.5
+ytick.major.pad : 1
+lines.scale_dashes : False
+legend.loc : upper right
+legend.frameon:False
+pdf.fonttype : 42
+text.color : k
+legend.markerscale : 1.5
+legend.title_fontsize : 16
+legend.facecolor: k
+legend.fontsize : 14
+axes.spines.right : False
+axes.spines.top: False
+savefig.dpi : 300
+savefig.format :png
+savefig.transparent : True
+

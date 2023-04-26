@@ -2,7 +2,7 @@
 Deep Learning for Computer Vision final project 
 
 ## Summary 
-
+Image segmentation of soft-body object using various convolution neural networks.
 
 ## Project setup
 
