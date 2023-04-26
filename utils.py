@@ -2,7 +2,7 @@ import PIL.Image as Image
 import torch
 import numpy as np
 from torchvision import transforms
-import random
+import random, cv2
 from scipy import ndimage
 import utils, os, pickle
 from scipy.io import loadmat
@@ -396,3 +396,39 @@ def predict(net, im_input, sigmoid=True, threshold=0, device=['cuda' if torch.cu
             mask_edges_pred[mask_edges_pred <= threshold] = 0
 
     return mask_pred.cpu().numpy(), mask_edges_pred.cpu().numpy(), mask_dist_pred.cpu().numpy()
+
+def load_movie(video_path):
+    """Load movie and return as numpy array
+
+    Args:
+        filepath (str): path to movie file
+    Returns:
+        movie (ND-array): movie as numpy array
+    """
+    cap = cv2.VideoCapture(video_path)
+    framecount = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    frames = []
+    for frame_idx in range(framecount):
+        if int(cap.get(cv2.CAP_PROP_POS_FRAMES)) != frame_idx:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+        ret, frame = cap.read()
+        if ret:
+            frames.append(frame)
+        else:
+            print("Error reading frame")
+    frames = np.array(frames)
+    return frames
+
+def save_video(pred_masks, frames, output_path, pred_edges=None, fps=60):
+    """Save movie with predicted masks overlaid on frames
+
+    Args:
+        pred_masks (ND-array): predicted masks
+        frames (ND-array): frames
+        output_path (str): path to save movie
+        pred_edges (ND-array): predicted edges
+        fps (int): frames per second
+    """
+    # TODO: complete this function
+    return
+
