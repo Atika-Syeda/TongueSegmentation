@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import numpy as np
 from glob import glob
-from model import FMnet
+from model import FMnet, UNet
 import utils
 from torch.utils import data
 from matplotlib import animation
@@ -21,6 +21,8 @@ parser.add_argument('--model-folder', type=str, default='trained_models', metava
                     help='Models path (default: trained_models)')
 parser.add_argument('--view', type=str, default='bottom', metavar='V',
                     help='View (default: bottom)')
+parser.add_argument('--model-name', type=str, default='FMnet', metavar='MW',
+                    help='Which model to use, options include [FMnet, UNet, UNet++, and DeepLabv3] (Default: FMnet)')
 args = parser.parse_args()
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Setup ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -41,10 +43,6 @@ model_path = os.path.join(os.getcwd(), args.output_dir, args.model_folder)
 if not os.path.exists(model_path):
     raise Exception("Model path does not exist")
 # Use best model
-#models = glob(os.path.join(model_path, '*.pth'))
-#models = [i.split("_")[-1].split(".")[0] for i in models]
-#models = [int(i) for i in models]
-#model_file = os.path.join(model_path, f'model_{max(models)}.pth')
 model_file = os.path.join(model_path, 'model_best.pth')
 if args.verbose:
     print(f"Using model: {model_file}")
@@ -65,7 +63,13 @@ if args.verbose:
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Model setup ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 state_dict = torch.load(model_file)
-model = FMnet()
+print(f"Using model: {args.model_name}")
+if args.model_name == 'FMnet':
+    model = FMnet() 
+elif args.model_name == 'UNet':
+    model = UNet()
+else:
+    raise Exception("Model name not recognized: {}".format(args.model_name))
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 model = model.to(device);
 model.load_state_dict(state_dict)
@@ -85,14 +89,13 @@ if args.verbose:
     print("Mean IoU for masks: ", np.nanmean(iou_masks))
     print("Mean IoU for mask edges: ", np.nanmean(iou_mask_edges))
 # Write accuracy to file
-#with open(os.path.join(output_path, f'model_{max(models)}'+'_accuracy.txt'), 'w') as f:
 with open(os.path.join(output_path, 'model_best_accuracy.txt'), 'w') as f:
     f.write("mask IoU: "+str(np.nanmean(iou_masks))+"\n")
     f.write("mask edges IoU: "+str(np.nanmean(iou_mask_edges)))
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Plot restuls ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Create an animation of video and model predictions
-fig, ax = plt.subplots(1, 3, figsize=(10, 5), dpi=100)
+fig, ax = plt.subplots(2, 3, figsize=(8, 5), dpi=300)
 
 num_frames = test_dataset.__len__() 
 test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=16)
@@ -101,29 +104,51 @@ iterator = iter(test_loader)
 start_idx = 0
 batch_data = next(iterator)
 imgs, masks, edges = batch_data['image'], batch_data['mask'], batch_data['mask_edges']
+# threshold masks and edges
+masks = (masks > 0.5).float()
+edges = (edges > 0.5).float()
 pred_masks, pred_edges, _ = utils.predict(model, imgs)
-# Plot the first frame
-frame_plot = ax[0].imshow(imgs[0].squeeze(), cmap='gray')
-ax[0].axis("off")
-ax[0].set_title("Frame: " + str(start_idx))
-mask_plot = ax[1].imshow(pred_masks[0].squeeze(), cmap='Greens', alpha=1)
-ax[1].axis("off")
-ax[1].set_title("Predicted mask: " + str(start_idx))
-mask_edge_plot = ax[2].imshow(pred_edges[0].squeeze(), cmap='Reds', alpha=.4)
-ax[2].axis("off")
-ax[2].set_title("Predicted edges: " + str(start_idx))
+# Plot the original image
+img_plot = ax[0,0].imshow(imgs[0].squeeze(), cmap='gray')
+ax[0,0].axis("off")
+ax[0,0].set_title("Frame: " + str(start_idx))
+mask_plot = ax[0,1].imshow(masks[0].squeeze(), cmap='Greens', alpha=1, vmin=0, vmax=1)
+ax[0,1].axis("off")
+ax[0,1].set_title("Mask: " + str(start_idx))
+mask_edge_plot = ax[0,2].imshow(edges[0].squeeze(), cmap='Reds', alpha=.4, vmin=0, vmax=1)
+ax[0,2].axis("off")
+ax[0,2].set_title("Edges: " + str(start_idx))
+
+# Plot the predictions
+frame_plot = ax[1,0].imshow(imgs[0].squeeze(), cmap='gray')
+ax[1,0].axis("off")
+ax[1,0].set_title("Frame: " + str(start_idx))
+pred_mask_plot = ax[1,1].imshow(pred_masks[0].squeeze(), cmap='Greens', alpha=1)
+ax[1,1].axis("off")
+ax[1,1].set_title("Predicted mask: " + str(start_idx))
+pred_mask_edge_plot = ax[1,2].imshow(pred_edges[0].squeeze(), cmap='Reds', alpha=.4)
+ax[1,2].axis("off")
+ax[1,2].set_title("Predicted edges: " + str(start_idx))
 
 def animate(i):
     batch_data = next(iterator)
     imgs, masks, edges = batch_data['image'], batch_data['mask'], batch_data['mask_edges']
+    masks = (masks > 0.5).float()
+    edges = (edges > 0.5).float()
     pred_masks, pred_edges, _ = utils.predict(model, imgs)
+    img_plot.set_data(imgs[0].squeeze())
+    ax[0,0].set_title("Frame: " + str(i))
     frame_plot.set_data(imgs[0].squeeze())
-    ax[0].set_title("Frame: " + str(i))
-    mask_plot.set_data(pred_masks[0].squeeze())
-    ax[1].set_title("Predicted mask: " + str(i))
-    mask_edge_plot.set_data(pred_edges[0].squeeze())
-    ax[2].set_title("Predicted edges: " + str(i))
-    return (frame_plot, mask_plot, mask_edge_plot)
+    ax[1,0].set_title("Frame: " + str(i))
+    mask_plot.set_data(masks[0].squeeze())
+    ax[0,1].set_title("Mask: " + str(i))
+    pred_mask_plot.set_data(pred_masks[0].squeeze())
+    ax[1,1].set_title("Predicted mask: " + str(i))
+    mask_edge_plot.set_data(edges[0].squeeze())
+    ax[0,2].set_title("Edges: " + str(i))
+    pred_mask_edge_plot.set_data(pred_edges[0].squeeze())
+    ax[1,2].set_title("Predicted edges: " + str(i))
+    return (frame_plot, mask_plot, mask_edge_plot, img_plot, pred_mask_plot, pred_mask_edge_plot)
 
 if args.verbose:
     print("Creating animation...")
@@ -132,10 +157,8 @@ HTML(anim.to_html5_video())
 # save to mp4 using ffmpeg writer
 writervideo = animation.FFMpegWriter(fps=60)
 iterator = iter(test_loader)
-#anim.save(os.path.join(output_path, f'model_{max(models)}'+'_pred.mp4'), writer=writervideo)
 anim.save(os.path.join(output_path, 'model_best_pred.mp4'), writer=writervideo)
 if args.verbose:
-    #print("Saved animation to file: ", os.path.join(output_path, f'model_{max(models)}'+'_pred.mp4'))
     print("Saved animation to file: ", os.path.join(output_path, 'model_best_pred.mp4'))
 plt.close()
 

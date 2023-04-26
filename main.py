@@ -8,7 +8,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from torch.utils import data
 from glob import glob
-from model import FMnet
+from model import FMnet, UNet
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Training settings ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 parser = argparse.ArgumentParser(description='PyTorch DLCV')
@@ -32,6 +32,8 @@ parser.add_argument('--view', type=str, default='bottom', metavar='V',
                     help='View (default: bottom)')
 parser.add_argument('--model-weights', type=str, default=None, metavar='MW',
                     help='Model weights (default: None)')
+parser.add_argument('--model-name', type=str, default='FMnet', metavar='MW',
+                    help='Which model to use, options include [FMnet, UNet, UNet++, and DeepLabv3] (Default: FMnet)')
 args = parser.parse_args()
 
 torch.manual_seed(args.seed)
@@ -78,7 +80,13 @@ train_loader = data.DataLoader(train_data, shuffle=True, batch_size=args.batch_s
 val_loader = data.DataLoader(val_data, shuffle=False, batch_size=args.batch_size, num_workers=16)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Model settings ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-model = FMnet() 
+print(f"Using model: {args.model_name}")
+if args.model_name == 'FMnet':
+    model = FMnet() 
+elif args.model_name == 'UNet':
+    model = UNet()
+else:
+    raise Exception("Model name not recognized: {}".format(args.model_name))
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 model = model.to(device);
 if args.model_weights is not None:

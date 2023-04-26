@@ -28,6 +28,7 @@ jupyter/__pycache__/
 .ipynb_checkpoints/
 __pycache__/
 data/
+unet_mod_output/
 output/
 .eggs/
 .vscode/
