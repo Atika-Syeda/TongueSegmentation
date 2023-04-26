@@ -33,6 +33,7 @@ output/
 .vscode/
 *.pth
 *.pdf
+*.png
 *.pt
 *.sh
 *.pkl
