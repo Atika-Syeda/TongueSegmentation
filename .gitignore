@@ -29,6 +29,7 @@ jupyter/__pycache__/
 __pycache__/
 data/
 unet_mod_output/
+sample_videos/
 output/
 .eggs/
 .vscode/

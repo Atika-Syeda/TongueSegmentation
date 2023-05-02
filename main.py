@@ -33,7 +33,7 @@ parser.add_argument('--data-augmentation', type=bool, default=False, metavar='DA
                     help='Data augmentation (default: False)')
 parser.add_argument('--view', type=str, default='bottom', metavar='V',
                     help='View (default: bottom)')
-parser.add_argument('--model-name', type=str, default='FMnet', metavar='MW',
+parser.add_argument('--model-name', type=str, default='FMnet', metavar='MN',
                     help='Which model to use, options include [FMnet, UNet, UNet++, DeepLabv3_ResNet50, DeepLabv3_ResNet101, and DeepLabv3_MobileNet] (Default: FMnet)')
 parser.add_argument('--model-weights', type=str, default=None, metavar='MW',
                     help='Model weights (default: None)')
@@ -145,16 +145,15 @@ def train():
         images = train_batch["image"].to(device, dtype=torch.float32)
         mask = train_batch["mask"].to(device, dtype=torch.float32)
         mask_edges = train_batch["mask_edges"].to(device, dtype=torch.float32)
-        mask_dist_to_boundary = train_batch["mask_dist_to_boundary"].to(device, dtype=torch.float32)
 
         if args.model_name in ['FMnet', 'UNet']:
-            mask_pred, mask_edges_pred, mask_dist_to_boundary_pred = model(images)
+            mask_pred, mask_edges_pred, _ = model(images)
         else:
             if "DeepLabv3" in args.model_name:
                 out = model(images.repeat(1, 3, 1, 1))['out']
             else:
                 out = model(images)
-            mask_pred, mask_edges_pred, mask_dist_to_boundary_pred = torch.unsqueeze(out[:, 0, :, :], 1), torch.unsqueeze(out[:, 1, :, :], 1), torch.unsqueeze(out[:, 2, :, :], 1)
+            mask_pred, mask_edges_pred, _ = torch.unsqueeze(out[:, 0, :, :], 1), torch.unsqueeze(out[:, 1, :, :], 1), torch.unsqueeze(out[:, 2, :, :], 1)
 
         # Compute loss
         loss = loss_fn(mask_pred, mask) + 0.5*loss_fn(mask_edges_pred, mask_edges) #+ 0.1*dist_loss(mask_dist_to_boundary_pred*mask, mask_dist_to_boundary*mask)
@@ -185,16 +184,15 @@ def validation():
         images = val_batch["image"].to(device, dtype=torch.float32)
         mask = val_batch["mask"].to(device, dtype=torch.float32)
         mask_edges = val_batch["mask_edges"].to(device, dtype=torch.float32)
-        mask_dist_to_boundary = val_batch["mask_dist_to_boundary"].to(device, dtype=torch.float32)
 
         if args.model_name in ['FMnet', 'UNet']:
-            mask_pred, mask_edges_pred, mask_dist_to_boundary_pred = model(images)
+            mask_pred, mask_edges_pred, _ = model(images)
         else:
             if "DeepLabv3" in args.model_name:
                 out = model(images.repeat(1, 3, 1, 1))['out']
             else:
                 out = model(images)
-            mask_pred, mask_edges_pred, mask_dist_to_boundary_pred = torch.unsqueeze(out[:, 0, :, :], 1), torch.unsqueeze(out[:, 1, :, :], 1), torch.unsqueeze(out[:, 2, :, :], 1)
+            mask_pred, mask_edges_pred, _ = torch.unsqueeze(out[:, 0, :, :], 1), torch.unsqueeze(out[:, 1, :, :], 1), torch.unsqueeze(out[:, 2, :, :], 1)
 
         # Compute loss and accuracy
         loss = loss_fn(mask_pred, mask) + 0.5*loss_fn(mask_edges_pred, mask_edges) #+ 0.1*dist_loss(mask_dist_to_boundary_pred*mask, mask_dist_to_boundary*mask)
@@ -223,9 +221,6 @@ pbar = tqdm(range(args.epochs), disable=not(args.verbose), desc="Epoch Loop")
 for epoch in pbar:
     if early_stopping_counter >= 30:
         break
-    # Set learning rate
-    #for param_group in optimizer.param_groups:
-    #    param_group["lr"] = LR[epoch]
     utils.set_seed(epoch)
     avg_train_loss, avg_train_acc = train()
     avg_val_loss, avg_val_acc = validation()
@@ -277,4 +272,3 @@ fig.savefig(os.path.join(output_path, 'loss_acc.png'))
 if args.verbose:
     print("Loss and accuracy plots saved to {}".format(os.path.join(output_path, 'loss_acc.png')))
 
-# References:
