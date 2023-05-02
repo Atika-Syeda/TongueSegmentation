@@ -417,22 +417,42 @@ def save_video_with_mask(pred_masks, frames, output_path, pred_edges=None, fps=6
         display_img = get_composite_img(frame, pred_mask)
         display_frames.append(display_img)
     # save movie
-    # Display video from both views in an animation
     fig, ax = plt.subplots(1, 1, figsize=(5, 5), dpi=100)
-
     start_idx = 0
-    bottomview_plot = ax.imshow(display_frames[start_idx], cmap='gray')
-    ax.set_title('Bottom view frame {}'.format(start_idx))
+    plot = ax.imshow(display_frames[start_idx], cmap='gray')
+    ax.set_title('Frame: {}'.format(start_idx))
     ax.axis('off')
 
     def animate(i):
-        bw_img = display_frames[i]
-        bottomview_plot.set_data(bw_img)
-        ax.set_title('Bottom view frame {}'.format(i))
-        return bottomview_plot
+        plot.set_data(display_frames[i])
+        ax.set_title('Frame: {}'.format(i))
+        return plot
 
     anim = animation.FuncAnimation(fig, animate, frames=len(display_frames), interval=10)
-    # save to mp4 using ffmpeg writer
+    writervideo = animation.FFMpegWriter(fps=fps)
+    anim.save(output_path, writer=writervideo)
+    plt.close()
+
+def save_video(frames, output_path, fps=60):
+    """Save movie
+
+    Args:
+        frames (ND-array): frames
+        output_path (str): path to save movie
+        fps (int): frames per second
+    """
+    fig, ax = plt.subplots(1, 1, figsize=(5, 5), dpi=100)
+    start_idx = 0
+    plot = ax.imshow(frames[start_idx].squeeze(), cmap='gray')
+    ax.set_title('Frame: {}'.format(start_idx))
+    ax.axis('off')
+
+    def animate(i):
+        plot.set_data(frames[i].squeeze())
+        ax.set_title('Frame: {}'.format(i))
+        return plot
+
+    anim = animation.FuncAnimation(fig, animate, frames=len(frames), interval=10)
     writervideo = animation.FFMpegWriter(fps=fps)
     anim.save(output_path, writer=writervideo)
     plt.close()

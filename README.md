@@ -4,6 +4,13 @@ Deep Learning for Computer Vision final project
 ## Summary 
 Image segmentation of soft-body object using different convolution neural networks. This project uses data from high-speed imaging camera and performs image segmentation to identify/track a soft-body object (tongue) from static images of mouse face recorded from a bottom view camera. The project compared various segmentation neural networks (UNet, UNet++, DeepLabV3) to find a model with the best generalization and test accuracy for the image segmentation task.
 
+Following is an example output from the model. Left shows raw image and right shows predicted mask overlayed on the raw frame:
+<div style="display: flex; justify-content: center;">
+  <img src="figs/out_raw.gif" width="400" />
+  <img src="figs/out_maskpred.gif" width="400" />
+</div>
+
+
 ## Project setup
 
 Use the following to clone the package:

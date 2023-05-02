@@ -78,10 +78,12 @@ for frame in tqdm(frames):
     pred_edges.append(pred_edge)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Save ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-print("Saving output video...")
+print("Saving output videos...")
 if args.output_name is None:
-    args.output_name = os.path.splitext(os.path.basename(args.movie))[0]+"_pred"
-output_path = os.path.join(args.output_dir, args.output_name+ args.output_type)
-utils.save_video_with_mask(pred_masks, frames, output_path, fps=args.fps)
-print(f"Video saved to {output_path}")
+    args.output_name = os.path.splitext(os.path.basename(args.movie))[0]
+mask_output_path = os.path.join(args.output_dir, args.output_name +"_maskpred" + args.output_type)
+utils.save_video_with_mask(pred_masks, frames, mask_output_path, fps=args.fps)
+raw_output_path = os.path.join(args.output_dir, args.output_name +"_raw" + args.output_type)
+utils.save_video(frames, raw_output_path, fps=args.fps)
+print(f"Videos saved to {raw_output_path}")
 
