@@ -10,46 +10,9 @@ from torch.utils.data import ConcatDataset
 import imgaug.augmenters as iaa
 import torch.nn.functional as F
 from dataset import TongueMaskDataset
-
-def pil_loader(path):
-    # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
-    with open(path, 'rb') as f:
-        with Image.open(f) as img:
-            return img.convert('RGB')
-
-transform = transforms.Compose([
-    transforms.Grayscale(num_output_channels=1),
-    transforms.Resize([128, 128]),
-    transforms.ToTensor()
-])
-
-data_rotate_transform = transforms.Compose([
-    transforms.Grayscale(num_output_channels=1),
-    transforms.Resize([128, 128]),
-    transforms.RandomRotation(10),
-    transforms.ToTensor()
-])
-
-data_hflip_transform = transforms.Compose([
-    transforms.Grayscale(num_output_channels=1),
-    transforms.Resize([128, 128]),
-    transforms.RandomHorizontalFlip(),
-    transforms.ToTensor()
-])
-
-data_vflip_transform = transforms.Compose([
-    transforms.Grayscale(num_output_channels=1),
-    transforms.Resize([128, 128]),
-    transforms.RandomVerticalFlip(),
-    transforms.ToTensor()
-])
-
-data_jitter_transform = transforms.Compose([
-    transforms.Grayscale(num_output_channels=1),
-    transforms.Resize([128, 128]),
-    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2),
-    transforms.ToTensor()
-])
+from matplotlib import animation
+from IPython.display import HTML
+import matplotlib.pyplot as plt
 
 def set_seed(seed):
     torch.backends.cudnn.deterministic = True
@@ -429,13 +392,15 @@ def load_movie(video_path):
             cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
         ret, frame = cap.read()
         if ret:
+            # convert to grayscale
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             frames.append(frame)
         else:
             print("Error reading frame")
     frames = np.array(frames)
     return frames
 
-def save_video(pred_masks, frames, output_path, pred_edges=None, fps=60):
+def save_video_with_mask(pred_masks, frames, output_path, pred_edges=None, fps=60):
     """Save movie with predicted masks overlaid on frames
 
     Args:
@@ -445,5 +410,90 @@ def save_video(pred_masks, frames, output_path, pred_edges=None, fps=60):
         pred_edges (ND-array): predicted edges
         fps (int): frames per second
     """
-    # TODO: complete this function
-    return
+    display_frames = []
+    for frame_idx in range(len(frames)):
+        frame = frames[frame_idx].cpu().numpy().transpose(1, 2, 0)
+        pred_mask = pred_masks[frame_idx].squeeze(0).transpose(1, 2, 0)
+        display_img = get_composite_img(frame, pred_mask)
+        display_frames.append(display_img)
+    # save movie
+    # Display video from both views in an animation
+    fig, ax = plt.subplots(1, 1, figsize=(5, 5), dpi=100)
+
+    start_idx = 0
+    bottomview_plot = ax.imshow(display_frames[start_idx], cmap='gray')
+    ax.set_title('Bottom view frame {}'.format(start_idx))
+    ax.axis('off')
+
+    def animate(i):
+        bw_img = display_frames[i]
+        bottomview_plot.set_data(bw_img)
+        ax.set_title('Bottom view frame {}'.format(i))
+        return bottomview_plot
+
+    anim = animation.FuncAnimation(fig, animate, frames=len(display_frames), interval=10)
+    # save to mp4 using ffmpeg writer
+    writervideo = animation.FFMpegWriter(fps=fps)
+    anim.save(output_path, writer=writervideo)
+    plt.close()
+
+
+def get_composite_img(img1, img2, alpha=.5):
+    """Get a composite image of img1 and img2 with a given alpha value.
+    
+    Args:
+        img1 (2D-array): A 2D array of shape (H, W) representing the first image.
+        img2 (2D-array): A 2D array of shape (H, W) representing the second image.
+        alpha (float): A float value between 0 and 1 that represents the transparency of img1.
+    
+    Returns:
+        composite_img (2D-array): A 2D array of shape (H, W) that is the composite image of img1 and img2.
+    """
+    # remove negative values
+    img1 = abs(img1)
+    img2 = abs(img2)
+    # convert to RGBA
+    img1 = cv2.cvtColor((img1 * 255).astype(np.uint8), cv2.COLOR_GRAY2RGBA)
+    img2 = cv2.cvtColor((img2 * 255).astype(np.uint8), cv2.COLOR_GRAY2RGBA)
+    mask = img2 #cv2.cvtColor(img2, cv2.COLOR_GRAY2RGBA)
+    # add alpha channel
+    mask[:, :, 3] = alpha * 255
+    # convert to PIL image
+    img1 = Image.fromarray(img1, mode='RGBA')
+    img2 = Image.fromarray(img2, mode='RGBA') 
+    mask = Image.fromarray(mask, mode='RGBA')
+    #composite_img = Image.blend(img1, img2, alpha)
+    composite_img = Image.composite(img1, img2, mask)
+    # convert to numpy array
+    composite_img = np.array(composite_img)
+    
+    return composite_img
+
+def preprocess_imgs(image_data, resize_shape=None,bbox=None):
+    """
+    Preprocess images to be in the range [0, 1] and normalize99
+    Parameters
+    ----------
+    image_data : list of ND-array of shape (C, W, H)
+        List of images.
+    Returns
+    -------
+    image_data : list of ND-array of shape (C, W, H)
+        List of images.
+    """
+    imgs = []
+    for im in image_data:
+        im = torch.from_numpy(im)
+        # Normalize
+        im = utils.normalize99(im)
+        # 1. Crop image
+        if bbox is not None:
+            im = utils.crop_image(im, bbox)
+        # 2. Pad image to square
+        im, _ = utils.pad_img_to_square(im)
+        # 3. Resize image to resize_shape for model input
+        if resize_shape is not None:
+            im = utils.resize_image(im, resize_shape)
+        imgs.append(im)
+    return imgs
+    

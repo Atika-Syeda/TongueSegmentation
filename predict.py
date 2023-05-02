@@ -3,6 +3,8 @@
 import argparse, os, torch
 from tqdm import tqdm
 from model import FMnet, UNet
+from NestedUNet import NestedUNet
+from torchvision.models.segmentation import deeplabv3_resnet50, deeplabv3_resnet101, deeplabv3_mobilenet_v3_large
 import utils
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Training settings ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -44,6 +46,14 @@ if args.model_name == 'FMnet':
     model = FMnet() 
 elif args.model_name == 'UNet':
     model = UNet()
+elif args.model_name == 'UNet++':
+    model = NestedUNet(num_classes=3, input_channels=1)
+elif args.model_name == 'DeepLabv3_ResNet50':
+    model = deeplabv3_resnet50(weights=None, weights_backbone=None, num_classes=3)
+elif args.model_name == 'DeepLabv3_ResNet101':
+    model = deeplabv3_resnet101(weights=None, weights_backbone=None, num_classes=3)
+elif args.model_name == 'DeepLabv3_MobileNet':
+    model = deeplabv3_mobilenet_v3_large(weights=None, weights_backbone=None, num_classes=3)
 else:
     raise Exception("Model name not recognized: {}".format(args.model_name))
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -55,21 +65,23 @@ model.eval();
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Load movie ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 print(f"Loading movie: {args.movie}")
 frames = utils.load_movie(args.movie)
+frames = utils.preprocess_imgs(frames, resize_shape=(256, 256))
 print(f"Movie loaded, {len(frames)} frames found")
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Predict ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 print("Predicting masks")
 pred_masks, pred_edges, pred_frames = [], [], []
 for frame in tqdm(frames):
-    pred_mask, pred_edge, _ = utils.predict(model, frame, sigmoid=True, threshold=0.5)
+    frame = frame.unsqueeze(0).to(device)
+    pred_mask, pred_edge, _ = utils.predict(model, frame, sigmoid=True, threshold=0.5, model_name=args.model_name)
     pred_masks.append(pred_mask)
     pred_edges.append(pred_edge)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Save ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-print("Saving output video")
+print("Saving output video...")
 if args.output_name is None:
-    args.output_name = os.path.splitext(os.path.basename(args.movie))[0]
-output_path = os.path.join(args.output_dir, args.output_name + args.output_type)
-utils.save_video(pred_masks, output_path, pred_edges=pred_edges, frames=frames, fps=args.fps)
+    args.output_name = os.path.splitext(os.path.basename(args.movie))[0]+"_pred"
+output_path = os.path.join(args.output_dir, args.output_name+ args.output_type)
+utils.save_video_with_mask(pred_masks, frames, output_path, fps=args.fps)
 print(f"Video saved to {output_path}")
 
