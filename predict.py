@@ -12,17 +12,17 @@ parser = argparse.ArgumentParser(description='PyTorch DLCV - predict')
 parser.add_argument('--movie', type=str, metavar='M',
                     help='Filepath to the movie to be used')
 parser.add_argument('--model-weights', type=str, metavar='MW',
-                    help='Filepath to the model weights to be used (Default: None)')
+                    help='Filepath to the model weights to be used')
 parser.add_argument('--model-name', type=str, default='FMnet', metavar='MN',
                     help='Which model to use, options include [FMnet, UNet, UNet++, and DeepLabv3] (Default: FMnet)')
 parser.add_argument('--output-dir', type=str, default=None, metavar='OP',
-                    help='Output directory (Default: None)')
+                    help='Output directory (Default: None, saved in current directory subfolder "output")')
 parser.add_argument('--output-name', type=str, default=None, metavar='O',
-                    help='Output file name (Default is None so video name is used).')
+                    help='Output file name (Default: None, video name is used).')
 parser.add_argument('--output-type', type=str, default='.mp4', metavar='T',
                     help='Output file type (Default: .mp4).')
 parser.add_argument('--fps', type=int, default=60, metavar='F',
-                    help='Frames per second for output video (Default: 60).')
+                    help='Frame rate in number of frames per second for output video (Default: 60).')
 args = parser.parse_args()
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ GPU/CPU ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

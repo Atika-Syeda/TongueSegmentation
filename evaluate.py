@@ -22,11 +22,11 @@ parser.add_argument('--verbose', type=bool, default=True, metavar='V',
 parser.add_argument(('--output-dir'), type=str, default='output', metavar='OP',
                     help='Output directory (default: output)')
 parser.add_argument('--model-folder', type=str, default='trained_models', metavar='MF',
-                    help='Models path (default: trained_models)')
+                    help='Model path containing model_best.pth file (default: trained_models)')
 parser.add_argument('--model-name', type=str, default='FMnet', metavar='MW',
                     help='Which model was used during training, options include [FMnet, UNet, UNet++, DeepLabv3_ResNet50, DeepLabv3_ResNet101, and DeepLabv3_MobileNet] (Default: FMnet)')
 parser.add_argument('--view', type=str, default='bottom', metavar='V',
-                    help='View (default: bottom)')
+                    help='Camera view (default: bottom)')
 args = parser.parse_args()
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Setup ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

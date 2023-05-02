@@ -29,14 +29,12 @@ parser.add_argument('--verbose', type=bool, default=True, metavar='V',
                     help='verbose (default: True)')   
 parser.add_argument(('--output-dir'), type=str, default='output', metavar='OP',
                     help='Output directory (default: output)')
-parser.add_argument('--data-augmentation', type=bool, default=False, metavar='DA',
-                    help='Data augmentation (default: False)')
 parser.add_argument('--view', type=str, default='bottom', metavar='V',
-                    help='View (default: bottom)')
+                    help='Camera view (default: bottom)')
 parser.add_argument('--model-name', type=str, default='FMnet', metavar='MN',
                     help='Which model to use, options include [FMnet, UNet, UNet++, DeepLabv3_ResNet50, DeepLabv3_ResNet101, and DeepLabv3_MobileNet] (Default: FMnet)')
 parser.add_argument('--model-weights', type=str, default=None, metavar='MW',
-                    help='Model weights (default: None)')
+                    help='Model weights to be used if resuming training (default: None)')
 args = parser.parse_args()
 
 torch.manual_seed(args.seed)

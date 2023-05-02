@@ -400,14 +400,13 @@ def load_movie(video_path):
     frames = np.array(frames)
     return frames
 
-def save_video_with_mask(pred_masks, frames, output_path, pred_edges=None, fps=60):
+def save_video_with_mask(pred_masks, frames, output_path, fps=60):
     """Save movie with predicted masks overlaid on frames
 
     Args:
         pred_masks (ND-array): predicted masks
         frames (ND-array): frames
         output_path (str): path to save movie
-        pred_edges (ND-array): predicted edges
         fps (int): frames per second
     """
     display_frames = []
@@ -475,7 +474,7 @@ def get_composite_img(img1, img2, alpha=.5):
     # convert to RGBA
     img1 = cv2.cvtColor((img1 * 255).astype(np.uint8), cv2.COLOR_GRAY2RGBA)
     img2 = cv2.cvtColor((img2 * 255).astype(np.uint8), cv2.COLOR_GRAY2RGBA)
-    mask = img2 #cv2.cvtColor(img2, cv2.COLOR_GRAY2RGBA)
+    mask = img2 
     # add alpha channel
     mask[:, :, 3] = alpha * 255
     # convert to PIL image
