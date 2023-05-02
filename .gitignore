@@ -21,6 +21,7 @@ docs/_build/
 
 # temporary emacs
 *~
+!figs/results_table.png
 
 # python and jupyter
 jupyter/.ipynb_checkpoints/
