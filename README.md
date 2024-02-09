@@ -22,6 +22,9 @@ The project successfully identifies and tracks the tongue from the static images
 
 The output images show the raw image on the left and the predicted mask overlaid on the raw image on the right.
 
+### Project report 
+The project report can be found [here](https://github.com/Atika-Syeda/TongueSegmentation/blob/main/syeda-final_report.pdf). 
+
 ### Conclusions
 In conclusion, this project demonstrates the effectiveness of the best selected convolutional neural network in performing image segmentation for soft-body object.
 
