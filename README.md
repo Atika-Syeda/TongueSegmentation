@@ -1,4 +1,4 @@
-# Deep Learning for Computer Vision
+# Segmentation model for soft-body object(tongue)
 
 ### Introduction
 This project focuses on image segmentation of soft-body objects using various convolution neural networks. Specifically, the project uses data from a high-speed imaging camera to perform image segmentation to identify and track a soft-body object, namely the tongue, from static images of mouse faces recorded from a bottom view camera.
